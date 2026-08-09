@@ -14,6 +14,7 @@
 | `index.html` | 만든 장면을 브라우저에 띄우는 페이지 |
 | `scene.sog` | 알갱이 320만 개, 15MB |
 | `.nojekyll` | 깃허브가 파일 이름을 손대지 않게 하는 표시 |
+| `skills/room-3d/` | 코딩 에이전트에게 주는 지침. 아래 참조 |
 
 ## 어떻게 만드나
 
@@ -36,6 +37,23 @@ T4 에서 잰 시간입니다. **대부분이 모델 내려받기**이고 실제
 | 복원 사진 24장 | 약 10초, 최대 6.7GB |
 | 알갱이 파일 쓰기 | 약 1초 |
 | 줄이기 | 약 30초 |
+
+## 코딩 에이전트에게 시키려면
+
+`skills/room-3d` 폴더를 통째로 복사해 `.claude/skills/` 아래에 두면 된다.
+
+```bash
+git clone https://github.com/SunCreation/room-3d-demo.git
+mkdir -p .claude/skills && cp -r room-3d-demo/skills/room-3d .claude/skills/
+```
+
+그다음 "이 영상으로 방을 3D 로 만들어 웹에 올려 줘" 처럼 말하면 된다.
+지침에는 이런 것이 들어 있다.
+
+- 이 기계의 사양을 보고 어디서 계산할지 정하는 방법. 필요하면 코랩 CLI 를 깔고 세션까지 잡는다
+- 걸음마다 무엇을 보고 잘됐는지 판단하는 기준
+- 조용히 실패하는 함정들. `fp16`, `SparkRenderer`, `pcsogszip`, 100MiB 관문
+- 갈림길에서는 혼자 정하지 않고 물어보게 되어 있다
 
 ## 찍는 요령
 
