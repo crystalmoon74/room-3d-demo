@@ -112,10 +112,10 @@ colab ls -s room /content
 colab stop -s room
 ```
 
-**`--timeout` 을 넉넉히 준다.** `colab exec` 이 답을 기다리는 기본값이 **30초**라
-그보다 긴 계산은 `TimeoutError: Timeout waiting for reply` 로 잘린다.
-모델 내려받기만 3분이니 그냥 두면 반드시 걸린다.
-한 번에 돌리고 반납하는 `colab run` 은 이 값에 안 걸린다.
+**`--timeout` 을 넉넉히 준다.** `colab exec` 은 출력 없이 **30초** 넘게 기다리면
+`TimeoutError: Timeout waiting for reply` 오류가 난다. 출력이 계속 나오면 실행은 더 오래 이어질 수 있다.
+모델 내려받기처럼 오래 걸리고 한동안 출력이 없을 수 있는 작업에는 `--timeout 3000` 을 붙인다.
+한 번에 돌리고 반납하는 `colab run` 도 출력 없이 기다리는 기본 제한 시간이 30초이므로 똑같이 적용한다.
 
 **`--gpu` 값을 틀리게 쓰지 않는다.** 받는 값은 `T4`, `L4`, `G4`, `H100`, `A100` 이다.
 모르는 값을 주면 조용히 A100 으로 떨어졌다가 그다음 걸음에서 실패한다.
@@ -320,8 +320,11 @@ y 와 z 의 부호를 뒤집지 않으면 장면이 거꾸로 선다.
 **건너뛸 수 없는 걸음이다.** 알갱이 320만 개면 `.ply` 가 217MB 인데
 깃허브는 파일 하나에 100MiB 가 한계다.
 
+splat-transform 3.11.0부터 기본으로 쓰는 SOG v3는 Spark 2.1.0과 2.4.0이 읽지 못하므로,
+SOG v2로 저장하는 3.10.3으로 고정한다.
+
 ```bash
-npx -y @playcanvas/splat-transform@latest -w input.ply output.sog
+npx -y @playcanvas/splat-transform@3.10.3 -w input.ply output.sog
 ```
 
 `-w` 를 빼면 파일이 이미 있을 때 덮어쓰지 않고 멈춘다.
