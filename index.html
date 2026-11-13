@@ -39,6 +39,9 @@
   #trap dl{margin:0}
   code{background:#1e293b;padding:1px 5px;border-radius:4px;color:#fbbf24;font-size:11.5px}
   .dim{color:#64748b}
+  body.drop::after{content:"여기에 놓으면 같은 시점에서 바꿔 봅니다";position:fixed;inset:12px;
+    border:2px dashed #0ea5e9;border-radius:16px;display:flex;align-items:center;
+    justify-content:center;color:#7dd3fc;font-size:15px;background:rgba(3,105,161,.15);pointer-events:none}
 </style>
 </head>
 <body>
@@ -53,12 +56,16 @@
     <li id="s4">알갱이로 풀기</li>
     <li id="s5">크기를 재서 카메라 놓기</li>
   </ul>
+  <div class="dim" id="first"></div>
   <div id="fix"></div>
 </div>
 
 <div class="panel" id="ctl">
   <div><button id="fit">화면에 맞추기</button><button id="flip">위아래 뒤집기</button></div>
   <div><button id="spin">자동 회전</button><button id="help">막혔을 때</button></div>
+  <div><button id="pick">파일 열기</button><input type="file" id="file" hidden
+    accept=".sog,.ply,.spz,.splat,.ksplat"></div>
+  <div class="dim">.ply · .compressed.ply · .sog · .spz 를 끌어다 놓아도 됩니다</div>
   <div class="dim" style="margin-top:6px">알갱이 퍼짐 <input type="range" id="std" min="0.6" max="3.2" step="0.1" value="2.83"></div>
 </div>
 
@@ -158,17 +165,59 @@ addEventListener("resize", resize); resize();
 
 let mesh = null, radius = 1;
 
+/* 확장자와 Spark 안쪽 이름이 다릅니다. .sog 는 "pcsogszip" 입니다.
+   그냥 "sog" 를 넘기면 Invalid file type 으로 걸립니다.
+   .compressed.ply 는 확장자가 .ply 이고 Spark 의 ply 읽개가 안쪽 머리말을 보고 압축판을 알아봅니다. */
+const TYPE_OF = { "compressed.ply": "ply", ply: "ply", spz: "spz", splat: "splat",
+                  ksplat: "ksplat", sog: "pcsogszip", rad: "rad" };
+function typeOf(name) {
+  const n = name.toLowerCase();
+  const ext = n.endsWith(".compressed.ply") ? "compressed.ply" : n.split(".").pop();
+  return { ext, fileType: TYPE_OF[ext] };
+}
+
+/* 받은 바이트를 알갱이로 풀어 장면에 넣습니다. 처음 열 때와 파일을 끌어다 놓을 때 같이 씁니다. */
+async function loadBytes(buf, name, secs) {
+  el("fix").classList.remove("show");
+  const mb = (buf.byteLength / 1048576).toFixed(1);
+  mark("s3", "ok");
+  el("s3").textContent = `파일 받기 ${name} ${buf.byteLength.toLocaleString("ko-KR")}바이트 (${mb}MB)` +
+                         (secs != null ? ` ${secs.toFixed(1)}초` : " 끌어다 놓음");
+  mark("s4", "run"); el("s4").textContent = "알갱이로 풀기";
+  mark("s5", ""); el("s5").textContent = "크기를 재서 카메라 놓기";
+  try {
+    const { ext, fileType } = typeOf(name);
+    if (!fileType) throw new Error(`Spark 이 모르는 확장자입니다: .${ext}`);
+    const t0 = performance.now();
+    const next = new SPARK.SplatMesh({ fileBytes: new Uint8Array(buf), fileType });
+    await next.initialized;
+    const n = next.packedSplats?.numSplats ?? 0;
+    if (!n) throw new Error("알갱이가 0개입니다");
+    if (mesh) { scene.remove(mesh); mesh.dispose?.(); }
+    mesh = next; scene.add(mesh);
+    if (window.room3d) window.room3d.mesh = mesh;
+    const per = (buf.byteLength / n).toFixed(2);
+    mark("s4", "ok");
+    el("s4").textContent = `알갱이 ${n.toLocaleString("ko-KR")}개 · 알갱이당 ${per}바이트 · 풀기 ${((performance.now() - t0) / 1000).toFixed(1)}초`;
+  } catch (e) {
+    mark("s4", "bad");
+    fail("파일은 받았는데 알갱이로 못 풀었습니다. " + (e?.message ?? String(e)) + "\n" +
+         "확장자와 실제 형식이 맞는지 보십시오. 노트북이 만든 .ply 는 3DGS 표준이라야 합니다.\n" +
+         "점만 든 ply(x,y,z,r,g,b)에는 scale, opacity, rot 열이 없어 여기서 걸립니다.");
+    throw e;
+  }
+  if (FLIP_YZ) doFlip(true);
+  fit();
+}
+
 mark("s3", "run");
-let buf;
+let buf, fetchSecs;
 try {
   const t0 = performance.now();
   const r = await fetch(SPLAT_FILE);
   if (!r.ok) throw new Error(`서버가 ${r.status} 를 돌려줬습니다`);
   buf = await r.arrayBuffer();
-  const mb = (buf.byteLength / 1048576).toFixed(1);
-  const s = ((performance.now() - t0) / 1000).toFixed(1);
-  mark("s3", "ok");
-  el("s3").textContent = `파일 받기 ${SPLAT_FILE} ${mb}MB ${s}초`;
+  fetchSecs = (performance.now() - t0) / 1000;
 } catch (e) {
   mark("s3", "bad");
   fail(`"${SPLAT_FILE}" 를 못 받았습니다. ${(e?.message ?? String(e))}\n` +
@@ -178,33 +227,6 @@ try {
        "3. 웹에 올렸다면 그 주소를 그대로 새 탭에서 열어 파일이 내려오는지");
   throw e;
 }
-
-/* 확장자와 Spark 안쪽 이름이 다릅니다. .sog 는 "pcsogszip" 입니다.
-   그냥 "sog" 를 넘기면 Invalid file type 으로 걸립니다. */
-const TYPE_OF = { ply: "ply", spz: "spz", splat: "splat", ksplat: "ksplat",
-                  sog: "pcsogszip", rad: "rad" };
-
-mark("s4", "run");
-try {
-  const ext = SPLAT_FILE.split(".").pop().toLowerCase();
-  const fileType = TYPE_OF[ext];
-  if (!fileType) throw new Error(`Spark 이 모르는 확장자입니다: .${ext}`);
-  mesh = new SPARK.SplatMesh({ fileBytes: new Uint8Array(buf), fileType });
-  scene.add(mesh);
-  await mesh.initialized;
-  const n = mesh.packedSplats?.numSplats ?? 0;
-  if (!n) throw new Error("알갱이가 0개입니다");
-  mark("s4", "ok");
-  el("s4").textContent = `알갱이 ${n.toLocaleString("ko-KR")}개`;
-} catch (e) {
-  mark("s4", "bad");
-  fail("파일은 받았는데 알갱이로 못 풀었습니다. " + (e?.message ?? String(e)) + "\n" +
-       "확장자와 실제 형식이 맞는지 보십시오. 노트북이 만든 .ply 는 3DGS 표준이라야 합니다.\n" +
-       "점만 든 ply(x,y,z,r,g,b)에는 scale, opacity, rot 열이 없어 여기서 걸립니다.");
-  throw e;
-}
-
-if (FLIP_YZ) doFlip(true);
 
 /* 함정 3. 알갱이 덩어리는 일반 메시가 아니라 three 가 크기를 못 잽니다.
    Box3.setFromObject 는 빈 상자를 돌려줍니다. Spark 가 주는 자를 씁니다. */
@@ -237,7 +259,31 @@ function fit() {
     `반지름 ${radius.toFixed(2)} · Box3.setFromObject 는 ` +
     (naiveWorks ? "됐습니다" : "빈 상자를 줬습니다");
 }
-fit();
+
+await loadBytes(buf, SPLAT_FILE, fetchSecs);
+/* 첫 화면까지 걸린 시간. 페이지 주소를 연 순간부터 알갱이가 처음 그려질 때까지입니다.
+   폰마다 이 줄을 적어 두면 README 의 비교표가 됩니다. */
+requestAnimationFrame(() => requestAnimationFrame(() => {
+  el("first").textContent = `첫 화면까지 ${(performance.now() / 1000).toFixed(1)}초 · ${SPLAT_FILE}`;
+}));
+
+/* 파일을 끌어다 놓거나 (PC) 골라서 (폰) 형식을 견주어 봅니다.
+   카메라는 그대로 두므로 같은 시점에서 비교됩니다. 새로 맞추려면 "화면에 맞추기". */
+async function openLocal(file) {
+  if (!file) return;
+  const keep = { pos: camera.position.clone(), tgt: controls.target.clone() };
+  const b = await file.arrayBuffer();
+  await loadBytes(b, file.name, null);
+  camera.position.copy(keep.pos); controls.target.copy(keep.tgt);
+}
+addEventListener("dragover", e => { e.preventDefault(); document.body.classList.add("drop"); });
+addEventListener("dragleave", e => { if (!e.relatedTarget) document.body.classList.remove("drop"); });
+addEventListener("drop", e => {
+  e.preventDefault(); document.body.classList.remove("drop");
+  openLocal(e.dataTransfer.files[0]);
+});
+el("pick").onclick = () => el("file").click();
+el("file").onchange = e => openLocal(e.target.files[0]);
 
 function doFlip(silent) {
   mesh.scale.y *= -1; mesh.scale.z *= -1;
