@@ -2,7 +2,37 @@
 
 방을 십오 초쯤 걸어 다니며 찍은 영상 하나에서 3차원 장면을 만들고 웹에 올린 것입니다.
 
-**보기** https://suncreation.github.io/room-3d-demo/
+**보기** https://crystalmoon74.github.io/room-3d-demo/ (창가 화분 실습)
+· 원본 데모 https://suncreation.github.io/room-3d-demo/
+
+## 실습 기록: 창가 화분 (2026-11-13)
+
+창가 선반의 화분을 옆으로 걸으며 찍은 영상(`3D_Plants.mp4`)으로 같은 과정을 밟았습니다.
+Windows 에서 Colab MCP 로 브라우저의 코랩 노트북을 몰아 T4 GPU 에서 계산했습니다.
+
+| 걸음 | 결과 |
+|---|---|
+| 영상 | 1280×720 가로, 24fps, 28.1초 (권장 15~20초보다 길어 사진을 32장으로 늘림) |
+| 사진 뽑기 | 32장, 0.88초 간격. 흐림 의심 1장(#10), 그대로 사용 |
+| 복원 | `facebook/map-anything-apache`, `fp16`, 14.9초, 최대 7.2GB |
+| 점 | 3,472,855개 → 멀리 튄 점(축별 0.5~99.5 백분위 밖) 버리고 3,371,328개 |
+| 장면 | 2.25 × 1.72 × 3.26 m, 대각선 4.32 m |
+| 카메라 이동 | 0.57 m, 대각선 대비 0.132 (0.1 이상이라 정상) |
+
+알갱이 크기를 세 가지로 만들어 견주었습니다. 주소 뒤 `?f=` 로 바꿔 볼 수 있습니다.
+
+| 파일 | 설정 | 알갱이 | 크기 | 보기 |
+|---|---|---|---|---|
+| `plants.sog` | K=1.4 | 3,371,328 | 17.7MB | [열기](https://crystalmoon74.github.io/room-3d-demo/?f=plants.sog) |
+| `plants_k09.sog` | K=0.9 | 3,371,328 | 17.7MB | [열기](https://crystalmoon74.github.io/room-3d-demo/?f=plants_k09.sog) |
+| `plants_k09_conf.sog` (기본) | K=0.9, 신뢰도 하위 30% 제거 | 2,359,937 | 12.0MB | [열기](https://crystalmoon74.github.io/room-3d-demo/?f=plants_k09_conf.sog) |
+
+배운 것
+
+- K=1.4 는 이 장면에서 잎과 화분 경계를 뭉갰습니다. K 를 낮추고 신뢰도 낮은 점을 걸러 내면 여러 장의 점이 어긋나 겹친 층이 줄어듭니다
+- 모델이 사진을 518×294 로 줄여 받아서 가는 잎의 세부는 처음부터 사라집니다. 원본만큼 선명하려면 이 점들에서 출발해 가우시안 스플랫 학습을 따로 돌려야 합니다
+- 런타임 유형을 바꾸면 Colab MCP 연결이 끊겨 멈출 수 있습니다. 노트북 탭을 다시 열고 연결을 새로 걸면 됩니다
+- 원본 영상은 저장소에 넣지 않았습니다 (`.gitignore`)
 
 [![Colab 에서 열기](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/SunCreation/room-3d-demo/blob/main/room3d.ipynb)
 
@@ -12,7 +42,8 @@
 |---|---|
 | `room3d.ipynb` | 영상에서 3차원 장면을 만드는 노트북. 코랩에서 T4 로 돕니다 |
 | `index.html` | 만든 장면을 브라우저에 띄우는 페이지 |
-| `scene.sog` | 알갱이 320만 개, 15MB |
+| `scene.sog` | 원본 데모의 방 장면. 알갱이 320만 개, 15MB (`?f=scene.sog`) |
+| `plants*.sog` | 창가 화분 실습 결과 세 판. 위 표 참조 |
 | `.nojekyll` | 깃허브가 파일 이름을 손대지 않게 하는 표시 |
 | `skills/room-3d/` | 코딩 에이전트에게 주는 지침. 아래 참조 |
 
